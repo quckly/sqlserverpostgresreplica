@@ -73,16 +73,7 @@ namespace SqlServerPostgresIntegration
                                         }
 
                                         //sb.Append("?");
-                                        if (reader.GetDataTypeName(columnNumber) == "int")
-                                        {
-                                            sb.Append(
-                                                $"{reader.GetSqlValue(columnNumber).ToString()}");
-                                        }
-                                        else
-                                        {
-                                            sb.Append(
-                                                $"'{reader.GetSqlValue(columnNumber).ToString().Replace("'", "''")}'");
-                                        }
+                                        AppendValue(sb, reader, columnNumber);
                                     }
 
                                     sb.Append(")");
@@ -101,11 +92,11 @@ namespace SqlServerPostgresIntegration
                                     //}
 
                                     WebClient client = new WebClient();
-                                    client.UploadString("http://192.168.1.10:8080/", sb.ToString());
+                                    client.UploadString("http://localhost:8080/", sb.ToString());
                                 }
-
-                                reader.Close();
                             }
+
+                            reader.Close();
 
                             break;
                         }
@@ -114,13 +105,35 @@ namespace SqlServerPostgresIntegration
                         {
                             command = new SqlCommand(@"SELECT * FROM INSERTED;", connection);
                             reader = command.ExecuteReader();
-                            reader.Read();
 
-                            for (int columnNumber = 0; columnNumber < triggContext.ColumnCount; columnNumber++)
+                            if (reader.HasRows)
                             {
-                                //pipe.Send("Updated column "
-                                //            + reader.GetName(columnNumber) + "? "
-                                //            + triggContext.IsUpdatedColumn(columnNumber).ToString());
+                                while (reader.Read())
+                                {
+                                    StringBuilder sb = new StringBuilder($"UPDATE {tableName} SET ");
+
+                                    int idx = 0;
+                                    for (int columnNumber = 0; columnNumber < triggContext.ColumnCount; columnNumber++)
+                                    {
+                                        if (!triggContext.IsUpdatedColumn(columnNumber))
+                                            continue;
+
+                                        if (idx > 0)
+                                        {
+                                            sb.Append(", ");
+                                        }
+
+                                        sb.Append($"{reader.GetName(columnNumber)} = ");
+                                        AppendValue(sb, reader, columnNumber);
+
+                                        idx++;
+                                    }
+
+                                    sb.Append($" WHERE {reader.GetName(0)} = {reader.GetSqlValue(0)};");
+
+                                    WebClient client = new WebClient();
+                                    client.UploadString("http://localhost:8080/", sb.ToString());
+                                }
                             }
 
                             reader.Close();
@@ -137,15 +150,31 @@ namespace SqlServerPostgresIntegration
                             {
                                 while (reader.Read())
                                 {
+                                    StringBuilder sb = new StringBuilder($"DELETE FROM {tableName}");
+                                    sb.Append($" WHERE {reader.GetName(0)} = {reader.GetSqlValue(0)};");
 
+                                    WebClient client = new WebClient();
+                                    client.UploadString("http://localhost:8080/", sb.ToString());
                                 }
-
-                                reader.Close();
                             }
 
                             break;
                         }
                 }
+            }
+        }
+
+        public static void AppendValue(StringBuilder sb, SqlDataReader reader, int columnNumber)
+        {
+            if (reader.GetDataTypeName(columnNumber) == "int")
+            {
+                sb.Append(
+                    $"{reader.GetSqlValue(columnNumber).ToString()}");
+            }
+            else
+            {
+                sb.Append(
+                    $"'{reader.GetSqlValue(columnNumber).ToString().Replace("'", "''")}'");
             }
         }
 

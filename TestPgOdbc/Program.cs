@@ -14,6 +14,8 @@ namespace TestPgOdbc
     {
         public static void ExecutePgsql(OdbcCommand cmd)
         {
+            Console.WriteLine($"Query = '{cmd.CommandText}'");
+
             try
             {
                 using (var conn = new OdbcConnection("DSN=PostgreSQL35W;"))
